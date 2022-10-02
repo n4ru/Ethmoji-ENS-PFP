@@ -1,0 +1,678 @@
+<style>
+  html,
+  body,
+  svg {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    background-color: grey;
+    font-family: sans-serif;
+    -webkit-text-stroke-width: 1px;
+    -webkit-text-stroke-color: black;
+    font-size: 64px;
+    animation-fill-mode: forwards;
+  }
+  input:focus {
+    outline: none;
+  }
+
+  @keyframes colors {
+    from {
+      background-color: grey;
+    }
+    to {
+      background-color: gold;
+    }
+  }
+</style>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <rect id="fill" width="100%" height="100%" fill="grey" />
+    <text
+      id="emoji"
+      x="50%"
+      y="55%"
+      style="font-size: 256px"
+      dominant-baseline="middle"
+      text-anchor="middle"
+    ></text>
+  </svg>
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <script>
+    const config = {
+      chainId: "0x5", // Goerli
+      fee: "0", //"100000000000000", // 0.01 ETH
+      purefee: "0", //"1000000000000000", // 0.1 ETH
+      contractAddress: "0xd5490b99b79788C42FEb52dED8F3F3b96eB803a8",
+      emoji: {
+        globe: "\u{1F310}",
+        check: "\u{2714}\u{FE0F}",
+        cross: "\u{274C}",
+        clipboard: "\u{1F4CB}",
+      },
+      abi: [
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "_name",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "_verify",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "_fee",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "_purefee",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "nonpayable",
+          type: "constructor",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "owner",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "approved",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+          ],
+          name: "Approval",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "owner",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "operator",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "bool",
+              name: "approved",
+              type: "bool",
+            },
+          ],
+          name: "ApprovalForAll",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "from",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+          ],
+          name: "Transfer",
+          type: "event",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+          ],
+          name: "approve",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "owner",
+              type: "address",
+            },
+          ],
+          name: "balanceOf",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "freezeFees",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+          ],
+          name: "getApproved",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "user",
+              type: "address",
+            },
+          ],
+          name: "getFrame",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "owner",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+          ],
+          name: "isApprovedForAll",
+          outputs: [
+            {
+              internalType: "bool",
+              name: "",
+              type: "bool",
+            },
+          ],
+          stateMutability: "pure",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "string",
+              name: "label",
+              type: "string",
+            },
+          ],
+          name: "mint",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "payable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "name",
+          outputs: [
+            {
+              internalType: "string",
+              name: "",
+              type: "string",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+          ],
+          name: "ownerOf",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "from",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+          ],
+          name: "safeTransferFrom",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "from",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+            {
+              internalType: "bytes",
+              name: "data",
+              type: "bytes",
+            },
+          ],
+          name: "safeTransferFrom",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              internalType: "bool",
+              name: "approved",
+              type: "bool",
+            },
+          ],
+          name: "setApprovalForAll",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_fee",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "_purefee",
+              type: "uint256",
+            },
+          ],
+          name: "setFees",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_size",
+              type: "uint256",
+            },
+          ],
+          name: "setFontSize",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "_verify",
+              type: "address",
+            },
+          ],
+          name: "setVerify",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "bytes4",
+              name: "interfaceId",
+              type: "bytes4",
+            },
+          ],
+          name: "supportsInterface",
+          outputs: [
+            {
+              internalType: "bool",
+              name: "",
+              type: "bool",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "sweep",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "symbol",
+          outputs: [
+            {
+              internalType: "string",
+              name: "",
+              type: "string",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "string",
+              name: "label",
+              type: "string",
+            },
+            {
+              internalType: "address",
+              name: "minter",
+              type: "address",
+            },
+          ],
+          name: "test",
+          outputs: [
+            {
+              internalType: "string",
+              name: "display",
+              type: "string",
+            },
+            {
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+            {
+              internalType: "bytes",
+              name: "parsed",
+              type: "bytes",
+            },
+            {
+              internalType: "bytes32",
+              name: "node",
+              type: "bytes32",
+            },
+            {
+              internalType: "bool",
+              name: "isPure",
+              type: "bool",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+          ],
+          name: "tokenURI",
+          outputs: [
+            {
+              internalType: "string",
+              name: "",
+              type: "string",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "totalSupply",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "from",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "tokenId",
+              type: "uint256",
+            },
+          ],
+          name: "transferFrom",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+      ],
+    };
+
+    const mint = (label, pure) => {
+      let fee = config.fee;
+      if (pure) fee = config.purefee;
+      config.contractInstance.methods
+        .mint(label)
+        .send({ from: config.account, value: fee })
+        .then((tx) => {
+          if (!tx) return;
+          bgColor("green");
+          setEmoji(config.emoji.check);
+        })
+        .catch((e) => {
+          console.log(e);
+          bgColor("red");
+          setEmoji(config.emoji.cross);
+        });
+    };
+
+    const connect = async () => {
+      if (window.ethereum) {
+        if (!config.account) {
+          const web3 = new Web3(window.ethereum);
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: config.chainId }],
+          });
+          window.ethereum
+            .request({ method: "eth_requestAccounts" })
+            .then((accounts) => {
+              if (!accounts) return;
+              config.account = accounts[0];
+              config.web3 = new Web3(window.ethereum);
+              config.contractInstance = new web3.eth.Contract(
+                config.abi,
+                config.contractAddress
+              );
+              setEmoji(config.emoji.clipboard); // Clipboard
+              bgColor("grey");
+            })
+            .catch((e) => {
+              console.log(e);
+              bgColor("red");
+            });
+        } else {
+          // Connected
+        }
+      } else {
+        // No Eth provider
+        setEmoji(config.emoji.cross);
+        bgColor("red");
+      }
+    };
+
+    document.body.addEventListener(
+      "paste",
+      async (event) => {
+        if (config.account) {
+          let label = event.clipboardData.getData("Text");
+          let result = await verify(label)
+            .then((result) => {
+              if (!result) return;
+              let parsed = result[2].slice(2);
+              let num = parsed.length / 8;
+              let emojiCount = 0;
+              for (let i = 0; i < num; i++)
+                emojiCount += Number("0x" + parsed.slice(i * 8, i * 8 + 2));
+              let size = 256 / emojiCount;
+              let pure = result[4];
+              if (pure) bgColor("yellow"); // Display Pure
+              else bgColor("grey");
+              setEmoji(result[0]); // Display Emoji
+              document.getElementById("emoji").style["font-size"] = `${
+                pure ? 256 : size
+              }px`;
+              mint(label, pure);
+            })
+            .catch((e) => {
+              console.log(e);
+              bgColor("red");
+            });
+        }
+      },
+      false
+    );
+
+    const bgColor = (color) => {
+      document.getElementById("fill").setAttribute("fill", color);
+      document.body.style.backgroundColor = color;
+    };
+
+    const verify = async (label) => {
+      return await config.contractInstance.methods
+        .test(label, config.account)
+        .call()
+        .catch((e) => {
+          console.log(e);
+          setEmoji(config.emoji.clipboard);
+          bgColor("red");
+        });
+    };
+
+    const setEmoji = (emoji) => {
+      document.getElementById("emoji").innerHTML = emoji;
+      document.getElementById("emoji").style["font-size"] = "256px";
+    };
+
+    setEmoji(config.emoji.globe);
+
+    document.body.addEventListener("click", connect, false);
+  </script>
+</body>
