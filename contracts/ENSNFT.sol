@@ -5,6 +5,16 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+struct Domain {
+    address owner;
+    string name; // domain name (normalized)
+}
+struct User {
+    uint256 feePaid; // total fees paid
+    uint256 size; // current font size
+    uint256 current; // current domain
+}
+
 library Base64 {
     string internal constant TABLE_ENCODE =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -233,8 +243,9 @@ interface IDomains {
 interface IStorage {
     function mint (string calldata, address, uint256, uint256) external;
     function setSize(address, uint256) external;
-    function getUser(address) external view returns (uint256, uint256, uint256);
-    function getDomain(uint256) external view returns (address, string memory);
+    function getUser(address) external view returns (User memory user);
+    function getDomain(uint256) external view returns (Domain memory domain);
+    
 }
 
 abstract contract ENS {
@@ -346,8 +357,8 @@ contract EmojiNFT is ERC721 {
     }
 
     function getFrame(address _user) public view returns (uint256) {
-        (,, uint256 current) = storageContract.getUser(_user);
-        return current;
+        User memory user = storageContract.getUser(_user);
+        return user.current;
     }
 
     function setFontSize(uint256 _size) public {
@@ -370,15 +381,15 @@ contract EmojiNFT is ERC721 {
     // The owner of any emoji domain can mint it at any time
     function mint(string calldata label) public payable returns (uint256) {
         (, uint256 tokenId, uint256 keycaps,,, bool isPure) = verify.test(label);
-        (uint256 feesPaid,, uint256 current) = storageContract.getUser(msg.sender);
-        (address owner,) = storageContract.getDomain(tokenId);
-        require(current != tokenId && owner != msg.sender, "You're already displaying this domain.");
+        User memory user = storageContract.getUser(msg.sender);
+        Domain memory domain = storageContract.getDomain(tokenId);
+        require(user.current != tokenId && domain.owner != msg.sender, "You're already displaying this domain.");
         //require(collection.ownerOf(tokenId) == msg.sender, "You don't own the domain.");
         uint256 mintFee = (isPure ? purefee : (keycaps > 0 ? keycapfee / keycaps : fee));
-        require((feesPaid + msg.value) >= mintFee, "fee too low");
-        if (current == 0) supply++; // Increase supply if this is the wallet's first mint
-        else emit Transfer(msg.sender, address(0), current); // Burn current NFT
-        if (owner != address(0)) emit Transfer(owner, msg.sender, tokenId); // Transfer the NFT
+        require((user.feePaid + msg.value) >= mintFee, "fee too low");
+        if (user.current == 0) supply++; // Increase supply if this is the wallet's first mint
+        else emit Transfer(msg.sender, address(0), user.current); // Burn current NFT
+        if (domain.owner != address(0)) emit Transfer(domain.owner, msg.sender, tokenId); // Transfer the NFT
         else emit Transfer(address(0), msg.sender, tokenId); // Mint the NFT
         storageContract.mint(label, msg.sender, tokenId, msg.value); // Save to Storage
 
@@ -402,21 +413,21 @@ contract EmojiNFT is ERC721 {
         override
         returns (string memory)
     {
-        (address owner, string memory name) = storageContract.getDomain(tokenId);
-        (, uint256 size,) = storageContract.getUser(owner);
-        bool stillOwned = (collection.ownerOf(tokenId) == owner);
-        stillOwned = stillOwned && owner != address(0);
-        (string memory display,, uint256 keycaps, bytes memory parsed,,bool isPure) = verify.test(name);
+        Domain memory domain = storageContract.getDomain(tokenId);
+        User memory user = storageContract.getUser(domain.owner);
+        bool stillOwned = (collection.ownerOf(tokenId) == domain.owner);
+        stillOwned = stillOwned && domain.owner != address(0);
+        (string memory display,, uint256 keycaps, bytes memory parsed,,bool isPure) = verify.test(domain.name);
         // Get total number of emojis
         uint256 num = 0;
-        uint256 emojiSize = (size == 0 ? 256 : size);
+        uint256 emojiSize = (user.size == 0 ? 256 : user.size);
         uint256 len = parsed.length / 4; 
         
 
         string memory color = "grey"; // Regular
         if (isPure) color = "gold"; // Pure
         if (keycaps > 0) color = "lightblue"; // Keycaps
-        if (owner == _owner) color = ownerColor; // hack the planet!
+        if (domain.owner == _owner) color = ownerColor; // hack the planet!
         if (!stillOwned) color = "black"; // Not owned by minter anymore
         
         for (uint256 i = 0; i < len; i++) num = num + uint8(parsed[i * 4]); // Add up all the emojis
@@ -425,7 +436,7 @@ contract EmojiNFT is ERC721 {
         // Create the NFT
         string memory json = Base64.encode(bytes(string(abi.encodePacked(
             "{\"name\": \"",
-            name, // ENS Domain (Normalized)
+            domain.name, // ENS Domain (Normalized)
             "\", \"description\": \"An ENS Ethmoji Domain\", \"image_data\": \"",
             "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='100%' height='100%' fill='",
             color, // Color
@@ -440,8 +451,8 @@ contract EmojiNFT is ERC721 {
     }
 
     function ownerOf(uint256 tokenId) public view override returns (address) {
-        (address owner,) = storageContract.getDomain(tokenId);
-        return owner;
+        Domain memory domain = storageContract.getDomain(tokenId);
+        return domain.owner;
     }
 
     function getApproved(uint256) public pure override returns (address) {
@@ -459,8 +470,8 @@ contract EmojiNFT is ERC721 {
     }
     
     function balanceOf(address owner) public view override returns (uint256) {
-        (,, uint256 current) = storageContract.getUser(owner);
-        if (current != 0) return 1; // Can only own one at a time
+        User memory user = storageContract.getUser(owner);
+        if (user.current != 0) return 1; // Can only own one at a time
         return 0;
     }
 

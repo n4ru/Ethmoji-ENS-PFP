@@ -22,12 +22,12 @@ contract('Emoji NFT', (accounts) => {
         it('should work', async () => {
             const domains = [
                 '🏴‍☠.eth',
-                //'🐶🐶🐶.eth',
-                //'🐶🐶🏴‍☠🐶🐶.eth',
-                //'😊😊😊.eth',
-                //'🇦🇺🇦🇺.eth',
-                //// not pure
-                //'🐶🐶🐶🐶.eth',
+                '🐶🐶🐶.eth',
+                '🐶🐶🏴‍☠🐶🐶.eth',
+                '😊😊😊.eth',
+                '🇦🇺🇦🇺.eth',
+                // not pure
+                '🐶🐶🐶🐶.eth',
             ]; // normalized
 
             const user = accounts[0];
