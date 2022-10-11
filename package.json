@@ -1,0 +1,40 @@
+{
+  "name": "ethmoji-ens-pfp",
+  "version": "1.0.0",
+  "description": "EDN NFT",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "npx truffle compile",
+    "test": "npx truffle test",
+    "migrate:dev": "npx truffle migrate --network development --reset",
+    "migrate:goerli": "npx truffle migrate --network goerli --reset",
+    "migrate:mainnet": "npx truffle migrate --network mainnet --reset",
+    "flat:nft": "npx truffle-flattener contracts/ENSNFT.sol > ENSNFT.sol",
+    "flat:storage": "npx truffle-flattener contracts/Storage.sol > Storage.sol",
+    "flat:verify": "npx truffle-flattener contracts/Verify.sol > Verify.sol",
+    "flat": "npm run flat:nft && npm run flat:storage && npm run flat:verify",
+    "fork:pirate": "npx ganache-cli -m \"***REMOVED***\" -p 8545 -h 0.0.0.0 -l 80000000 --fork ***REMOVED*** --wallet.unlockedAccounts 0x149fD340cA0DF54228aACdAD7755B05d0E2b23d9",
+    "fork": "npx ganache-cli -m \"***REMOVED***\" -p 8545 -h 0.0.0.0 -l 80000000 --fork ***REMOVED***"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/n4ru/Ethmoji-ENS-PFP.git"
+  },
+  "author": "n4ru",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/n4ru/Ethmoji-ENS-PFP/issues"
+  },
+  "homepage": "https://github.com/n4ru/Ethmoji-ENS-PFP#readme",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.7.3",
+    "bn-chai": "^1.0.1",
+    "chai": "^4.3.6",
+    "chai-as-promised": "^7.1.1",
+    "fluidb": "^0.3.0",
+    "truffle": "^5.6.0"
+  }
+}

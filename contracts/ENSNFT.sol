@@ -1,6 +1,6 @@
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
@@ -169,15 +169,22 @@ library Base64 {
     }
 }
 
-interface Verify {
-    function test(string memory name) external view returns (string memory display,
+interface IVerify {
+
+        function test(string memory name)
+        external
+        view
+        returns (
+            string memory display,
             uint256 label_hash,
+            uint256 keycaps,
             bytes memory parsed,
             bytes32 node,
-            bool isPure);
+            bool isPure
+        );
 }
 
-interface Domains {
+interface IDomains {
 
     function name() external view returns (string memory);
 
@@ -223,101 +230,170 @@ interface Domains {
         returns (bool);
 }
 
-contract ENS is ERC721 {
+interface IStorage {
+    function mint (string calldata, address, uint256, uint256) external;
+    function setSize(address, uint256) external;
+    function getUser(address) external view returns (uint256, uint256, uint256);
+    function getDomain(uint256) external view returns (address, string memory);
+}
 
-    Domains collection;
-    Verify verify;
+abstract contract ENS {
+    function resolver(bytes32 node) public virtual view returns (Resolver);
+}
+
+abstract contract Resolver {
+    function addr(bytes32 node) public virtual view returns (address);
+}
+
+contract EmojiNFT is ERC721 {
+
+    IDomains collection;
+    IVerify verify;
+    IStorage storageContract;
+    ENS ens = ENS(0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
 
     address payable private _owner;
-    mapping (address => bool) isPaid;
-	mapping (address => uint256) minted;
-    mapping (address => uint256) size;
-    mapping (uint256 => string) names;
-    mapping (uint256 => address) tokenOwners;
+    bytes32[] payees;
+    mapping (bytes32 => uint256) share;
+    string ownerColor = "#20C20E"; // special color
+
+    // People might want to know when these hopefully static values change
+    event ValidatorChanged(address indexed newValidator); 
+    event CollectionChanged(address indexed newCollection);
+    event ENSChanged(address indexed newENS);
 
     uint256 supply = 0;
+    uint256 keycapfee = 0 ether; // Keycaps fee (keycapfee / keycap_count)
 	uint256 purefee = 0 ether; // Amount to charge for pure emojis only
 	uint256 fee = 0 ether; // Amount to charge for all other emoji domains
-    
-	bool lockFees;
+
+	bool lockFees; // Lock fees to prevent changes
 
     modifier onlyOwner() {
         require(msg.sender == _owner, "onlyOwner");
         _;
     }
 
-    constructor(address _name, address _verify, uint256 _fee, uint256 _purefee)
+    constructor(address _name, address _verify, address _storage, uint256 _fee, uint256 _purefee, uint256 _keycapfee)
         ERC721(
-            "Emoji ENS PFP",
-            "EENS"
+            "Emoji Domain NFT",
+            "EDN"
         )
     {
         _owner = payable(msg.sender); // Set owner
-        setFees(_fee, _purefee); // Set fees
-        verify = Verify((_verify)); // Set emoji verification contract
-        collection = Domains(address(_name)); // Hopefully forever...
+        setFees(_fee, _purefee, _keycapfee); // Set fees
+        verify = IVerify(_verify); // Set emoji verification contract
+        collection = IDomains(_name); // Hopefully forever...
+        storageContract = IStorage(_storage);
     }
 
-    // If this is triggered fees are locked forever (and normal fee is 0)
+    // Lets hope I didn't fuck this up too bad
+    function withdraw() public {
+
+        uint256 balance = address(this).balance;
+
+        // Loop through payees and resolve their address using ENS
+        for (uint256 i = 0; i < payees.length; i++) {
+            address payable payee = payable(resolve(payees[i]));
+            uint256 amount = (balance * share[payees[i]]) / 100;
+            if (amount > 0) payee.transfer(amount); // Send them their share
+        }
+        if (address(this).balance > 0) _owner.transfer(balance); // Transfer the rest to the owner
+    }
+
+    function addPayee(bytes32 _node) public onlyOwner {
+        payees.push(_node);
+    }
+
+    function updateShare(bytes32 _node, uint256 _share) public onlyOwner {
+        share[_node] = _share;
+    }
+
+    function resolve(bytes32 node) public view returns(address) {
+        Resolver resolver = ens.resolver(node);
+        return resolver.addr(node);
+    }
+
+    function setOwner(address payable _newOwner) public onlyOwner {
+        _owner = _newOwner;
+    }
+
+    // If this is triggered fees are locked forever
 	function freezeFees() public onlyOwner {
-		if (fee == 0) lockFees = true;
+		if (fee == 0) lockFees = true; // Can only lock fees if base fee is 0
 	}
 
-	function setFees(uint256 _fee, uint256 _purefee) public onlyOwner {
+	function setFees(uint256 _fee, uint256 _purefee, uint256 _keycapfee) public onlyOwner {
         require(!lockFees, "fees are permalocked");
+		keycapfee = _keycapfee;
 		purefee = _purefee;
 		fee = _fee;
 	}
 
     function setVerify(address _verify) public onlyOwner {
-        verify = Verify(_verify); // Modify emoji verification contract
+        verify = IVerify(_verify); // Modify emoji verification contract
+        emit ValidatorChanged(_verify); 
     }
 
-    function sweep() public onlyOwner {
-        _owner.transfer(address(this).balance);
+    function setDomains(address _reg) public onlyOwner {
+        collection = IDomains(_reg); // Modify domain verification contract
+        emit CollectionChanged(_reg); 
     }
 
-    function getFrame(address user) public view returns (uint256) { 
-        return minted[user];
+    function setENS(address _ens) external onlyOwner { // Why would this ever change?
+        ens = ENS(_ens); 
+        emit ENSChanged(_ens); 
+    }
+
+    function getFrame(address _user) public view returns (uint256) {
+        (,, uint256 current) = storageContract.getUser(_user);
+        return current;
     }
 
     function setFontSize(uint256 _size) public {
         require(_size >= 32 && _size <= 256, "select between 32 and 256");
-        size[msg.sender] = _size;
+        storageContract.setSize(msg.sender, _size);
     }
 
-    function test(string calldata label, address minter) public view returns (string memory display, uint256 tokenId, bytes memory parsed, bytes32 node, bool isPure) {
-        (display, tokenId, parsed, node, isPure) = verify.test(label);
-        require(minter == collection.ownerOf(tokenId), "not the owner");
+    function getFee(string calldata _label) public view returns (uint256) {
+        (,, uint256 keycaps,,, bool isPure) = verify.test(_label);
+        if (isPure) return purefee;
+        if (keycaps > 0) return (keycapfee / keycaps);
+        return fee;
+    }
+
+    function test(string calldata label, address minter) public view returns (string memory display, uint256 tokenId, uint256 keycaps, bytes memory parsed, bytes32 node, bool isPure) {
+        (display, tokenId, keycaps, parsed, node, isPure) = verify.test(label);
+        //require(minter == collection.ownerOf(tokenId), "not the owner");
     }
 
     // The owner of any emoji domain can mint it at any time
     function mint(string calldata label) public payable returns (uint256) {
-        (string memory display, uint256 tokenId, bytes memory parsed, bytes32 node, bool isPure)  = verify.test(label);
-        require(minted[msg.sender] != tokenId, "You're already displaying this domain'.");
-        require(collection.ownerOf(tokenId) == msg.sender, "You don't own the domain.");
-		if (isPure && !isPaid[msg.sender]) {
-            require(msg.value >= purefee, "pure fee");
-            isPaid[msg.sender] = true;
-        }
-        if (minted[msg.sender] == 0) supply++; // Increase supply if this is the wallet's first mint
-        if (minted[msg.sender] != 0) {
-            tokenOwners[minted[msg.sender]] = address(0); // Set previous domain owner to null address
-            emit Transfer(msg.sender, address(0), minted[msg.sender]); // Burn current NFT
-        }
-        if (tokenOwners[tokenId] != msg.sender && tokenOwners[tokenId] != address(0)) 
-            emit Transfer(tokenOwners[tokenId], msg.sender, tokenId); // Transfer the NFT
-        else 
-            emit Transfer(address(0), msg.sender, tokenId); // Mint the NFT
-        minted[msg.sender] = tokenId; // Save owner -> token map
-        tokenOwners[tokenId] = msg.sender; // Save token -> owner map
-        if (keccak256(abi.encodePacked(names[tokenId])) == keccak256(abi.encodePacked("")))
-            names[tokenId] = label; // Save token -> label map
+        (, uint256 tokenId, uint256 keycaps,,, bool isPure) = verify.test(label);
+        (uint256 feesPaid,, uint256 current) = storageContract.getUser(msg.sender);
+        (address owner,) = storageContract.getDomain(tokenId);
+        require(current != tokenId && owner != msg.sender, "You're already displaying this domain.");
+        //require(collection.ownerOf(tokenId) == msg.sender, "You don't own the domain.");
+        uint256 mintFee = (isPure ? purefee : (keycaps > 0 ? keycapfee / keycaps : fee));
+        require((feesPaid + msg.value) >= mintFee, "fee too low");
+        if (current == 0) supply++; // Increase supply if this is the wallet's first mint
+        else emit Transfer(msg.sender, address(0), current); // Burn current NFT
+        if (owner != address(0)) emit Transfer(owner, msg.sender, tokenId); // Transfer the NFT
+        else emit Transfer(address(0), msg.sender, tokenId); // Mint the NFT
+        storageContract.mint(label, msg.sender, tokenId, msg.value); // Save to Storage
+
+        // Send refund if user overpaid
+        if (msg.value > mintFee) payable(msg.sender).transfer(msg.value - mintFee);
+
         return tokenId;
     }
 
     function totalSupply() public view returns (uint256) {
         return supply;
+    }
+
+    function hacktheplanet(string calldata _color) public onlyOwner {
+        ownerColor = _color;
     }
 
     function tokenURI(uint256 tokenId)
@@ -326,45 +402,55 @@ contract ENS is ERC721 {
         override
         returns (string memory)
     {
-        bool stillOwned = (collection.ownerOf(tokenId) == tokenOwners[tokenId]);
-        stillOwned = stillOwned && tokenOwners[tokenId] != address(0);
-        //require(stillOwned, "was not minted by current owner");
-        //require(tokenOwners[tokenId] != address(0), "not owned by anyone");
-        string memory label = names[tokenId];
-        (string memory display, uint256 token, bytes memory parsed, bytes32 node, bool isPure)  = verify.test(label);
+        (address owner, string memory name) = storageContract.getDomain(tokenId);
+        (, uint256 size,) = storageContract.getUser(owner);
+        bool stillOwned = (collection.ownerOf(tokenId) == owner);
+        stillOwned = stillOwned && owner != address(0);
+        (string memory display,, uint256 keycaps, bytes memory parsed,,bool isPure) = verify.test(name);
         // Get total number of emojis
         uint256 num = 0;
-        uint256 emojiSize = (size[tokenOwners[tokenId]] == 0 ? 256 : size[tokenOwners[tokenId]]);
+        uint256 emojiSize = (size == 0 ? 256 : size);
         uint256 len = parsed.length / 4; 
-        for (uint256 i = 0; i < len; i++) num = num + uint8(parsed[i * 4]);
-        uint256 px = emojiSize / num; 
+        
+
+        string memory color = "grey"; // Regular
+        if (isPure) color = "gold"; // Pure
+        if (keycaps > 0) color = "lightblue"; // Keycaps
+        if (owner == _owner) color = ownerColor; // hack the planet!
+        if (!stillOwned) color = "black"; // Not owned by minter anymore
+        
+        for (uint256 i = 0; i < len; i++) num = num + uint8(parsed[i * 4]); // Add up all the emojis
+        uint256 px = emojiSize / num;  // Initial font size (32-256) divided by the total number of emojis
+
+        // Create the NFT
         string memory json = Base64.encode(bytes(string(abi.encodePacked(
-            "{\"name\": \"", 
-            display, // ENS Domain (Beautified)
+            "{\"name\": \"",
+            name, // ENS Domain (Normalized)
             "\", \"description\": \"An ENS Ethmoji Domain\", \"image_data\": \"",
             "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='100%' height='100%' fill='",
-            (stillOwned ? (isPure ? "gold" : "grey") : "black"),
+            color, // Color
             "' /><text x='50%' y='55%' style='font-size: ",
-            Strings.toString((!isPure && true/*stillOwned*/) ? px : emojiSize), // Number of emojis
+            (Strings.toString(isPure ? emojiSize : px)),
             "px' dominant-baseline='middle' text-anchor='middle'>",
-            true/*stillOwned*/ ? display : unicode"�", // Emoji
-            "</text></svg>",
-            "\"}"
+            display, // Emoji
+            "</text></svg>\"}"
         ))));
+
         return string(abi.encodePacked("data:application/json;base64,", json));
     }
 
     function ownerOf(uint256 tokenId) public view override returns (address) {
-        return tokenOwners[tokenId];
+        (address owner,) = storageContract.getDomain(tokenId);
+        return owner;
     }
 
-    function getApproved(uint256 tokenId) public view override returns (address) {
+    function getApproved(uint256) public pure override returns (address) {
         return address(0);
     }
 
     function setApprovalForAll(address to, bool approved) public override {} // Stub 
 
-    function isApprovedForAll(address owner, address to)
+    function isApprovedForAll(address, address)
         public pure
         override
         returns (bool)
@@ -373,7 +459,8 @@ contract ENS is ERC721 {
     }
     
     function balanceOf(address owner) public view override returns (uint256) {
-        if (minted[owner] != 0) return 1; // Can only own one at a time
+        (,, uint256 current) = storageContract.getUser(owner);
+        if (current != 0) return 1; // Can only own one at a time
         return 0;
     }
 

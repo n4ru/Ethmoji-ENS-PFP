@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Ownable} from "@openzeppelin/contracts@4.6.0/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Ethmoji is Ownable {
+contract EthmojiVerifier is Ownable {
     uint256 constant EMOJI_STATE_MASK = 0x07FF;
     uint256 constant EMOJI_STATE_QUIRK = 0x0800;
     uint256 constant EMOJI_STATE_VALID = 0x1000;
@@ -51,12 +51,32 @@ contract Ethmoji is Ownable {
     // 🇦🇦🇦.eth
     // 👨‍👩‍👦👨‍👩‍👦.eth
 
+    function keycap_count(bytes memory name, bytes memory parsed)
+        private
+        pure
+        returns (uint256)
+    {
+        unchecked {
+            uint256 pos;
+            uint256 len;
+            for (uint256 i; i < parsed.length; i += 4) {
+                uint256 n = uint8(parsed[pos]);
+                uint256 cp = uint8(name[pos]);
+                if (cp < 0x30 || cp > 0x39) return 0;
+                pos += n * uint8(parsed[pos + 2]);
+                len += n;
+            }
+            return len;
+        }
+    }
+
     function test(string memory name)
         public
         view
         returns (
             string memory display,
             uint256 label_hash,
+            uint256 keycaps,
             bytes memory parsed,
             bytes32 node,
             bool isPure
@@ -71,31 +91,23 @@ contract Ethmoji is Ownable {
         require((suffix & 0xFFFFFFFF) == 0x2E657468, ".eth"); // require that it ends in .eth
         bytes memory temp;
         (temp, parsed) = beautify(bytes(name)); // throws if not normalized ethmoji
-        if (parsed.length == 4) {
+        keycaps = keycap_count(bytes(name), parsed);
+        if (keycaps > 0) {} else if (parsed.length == 4) {
             // single
             uint256 n = uint8(parsed[0]);
             uint256 num_cp = uint8(parsed[1]);
             if ((num_cp == 1 && n == 3) || (num_cp == 2 && n == 2) || (n == 1))
                 isPure = true;
-			if (isPure) {
-            	// truncate to 1
-            	n = uint8(parsed[3]);
-            	assembly {
-					// store the 1 (?)
-            	    mstore(temp, n)
-            	}
-			}
-        }
-        if (parsed.length == 8) {
+            if (isPure) {
+                n = uint8(parsed[3]); // truncate to 1 beautified
+			    assembly {
+			    	mstore(temp, n)
+			    }
+            }
+        } else if (parsed.length == 8) {
             // double
-            require(
-                uint8(parsed[0]) == 1 && uint8(parsed[1]) == 2,
-                "not double 0"
-            );
-            require(
-                uint8(parsed[4]) == 1 && uint8(parsed[5]) == 2,
-                "not double 1"
-            );
+            require(uint8(parsed[0]) == 1 && uint8(parsed[1]) == 2, "not double 0");
+            require(uint8(parsed[4]) == 1 && uint8(parsed[5]) == 2, "not double 1");
             // temp is [flag][flag]
             // Check for flag + skin color combo and disallow
         }
@@ -103,14 +115,7 @@ contract Ethmoji is Ownable {
         assembly {
             label_hash := keccak256(add(name, 32), sub(len, 4)) // compute label hash
         }
-        node = keccak256(
-            abi.encodePacked(
-                uint256(
-                    0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae
-                ),
-                label_hash
-            )
-        );
+        node = keccak256(abi.encodePacked(uint256(0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae), label_hash));
     }
 
     function beautify(bytes memory name)
