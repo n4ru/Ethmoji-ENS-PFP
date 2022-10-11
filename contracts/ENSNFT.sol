@@ -9,6 +9,7 @@ struct Domain {
     address owner;
     string name; // domain name (normalized)
 }
+
 struct User {
     uint256 feePaid; // total fees paid
     uint256 size; // current font size
@@ -245,7 +246,6 @@ interface IStorage {
     function setSize(address, uint256) external;
     function getUser(address) external view returns (User memory user);
     function getDomain(uint256) external view returns (Domain memory domain);
-    
 }
 
 abstract contract ENS {
@@ -274,9 +274,9 @@ contract EmojiNFT is ERC721 {
     event ENSChanged(address indexed newENS);
 
     uint256 supply = 0;
-    uint256 keycapfee = 0 ether; // Keycaps fee (keycapfee / keycap_count)
-	uint256 purefee = 0 ether; // Amount to charge for pure emojis only
-	uint256 fee = 0 ether; // Amount to charge for all other emoji domains
+    uint256 keycapfee; // Keycaps fee (keycapfee / keycap_count)
+	uint256 purefee; // Amount to charge for pure emojis only
+	uint256 fee; // Amount to charge for all other emoji domains
 
 	bool lockFees; // Lock fees to prevent changes
 
@@ -416,12 +416,11 @@ contract EmojiNFT is ERC721 {
         Domain memory domain = storageContract.getDomain(tokenId);
         User memory user = storageContract.getUser(domain.owner);
         bool stillOwned = (collection.ownerOf(tokenId) == domain.owner);
-        stillOwned = stillOwned && domain.owner != address(0);
         (string memory display,, uint256 keycaps, bytes memory parsed,,bool isPure) = verify.test(domain.name);
         // Get total number of emojis
         uint256 num = 0;
-        uint256 emojiSize = (user.size == 0 ? 256 : user.size);
-        uint256 len = parsed.length / 4; 
+        uint256 emojiSize = user.size;
+        uint256 len = parsed.length / 4; // 4B vector per run of emoji
         
 
         string memory color = "grey"; // Regular
@@ -437,7 +436,7 @@ contract EmojiNFT is ERC721 {
         string memory json = Base64.encode(bytes(string(abi.encodePacked(
             "{\"name\": \"",
             domain.name, // ENS Domain (Normalized)
-            "\", \"description\": \"An ENS Ethmoji Domain\", \"image_data\": \"",
+            "\", \"description\": \"An ENS Emoji Domain NFT\", \"image_data\": \"",
             "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='100%' height='100%' fill='",
             color, // Color
             "' /><text x='50%' y='55%' style='font-size: ",

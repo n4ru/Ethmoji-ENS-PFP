@@ -23,7 +23,7 @@ contract('Emoji NFT', (accounts) => {
             const domains = [
                 '🏴‍☠.eth',
                 '🐶🐶🐶.eth',
-                '🐶🐶🏴‍☠🐶🐶.eth',
+                //'🐶🐶🏴‍☠🐶🐶.eth', // reverts, nobody owns it so ownerOf fails
                 '😊😊😊.eth',
                 '🇦🇺🇦🇺.eth',
                 // not pure
@@ -39,34 +39,29 @@ contract('Emoji NFT', (accounts) => {
                 console.log("TokenId: " + label.tokenId);
                 const { logs, receipt } = await nft.mint(domain, { value: fee, from: user })
                 let thisToken = await nft.tokenURI(label.tokenId);
-                console.log(thisToken);
+                //console.log(thisToken);
             }
         })
 
         
 
-        //it('should fail', async () => {
-        //
-        //    const invalidDomains = [
-        //        // invalid
-        //        'justtext.eth',
-        //        'mi🐶xed.eth',
-        //        '😊.eth', // too short
-        //    ];
-        //
-        //    const user = accounts[0];
-        //
-        //    for (let d in invalidDomains) {
-        //        const domain = invalidDomains[d];
-        //        const fee = await nft.getFee(domain);
-        //        const label = await nft.test(domain, user).should.be.rejected;
-        //        console.log("TokenId: " + label.tokenId);
-        //        const { logs, receipt } = await nft.mint(domain, { value: fee, from: user }).should.be.rejected;
-        //        //let thisToken = await nft.tokenURI(label.tokenId);
-        //        //console.log(thisToken);
-        //    }
-        //
-        //});
+        it('should fail', async () => {
+        
+            const invalidDomains = [
+                // invalid
+                'text.eth',
+                'dog🐶.eth',
+                //'😊.eth', // too short but valid, won't fail without owner check
+            ];
+        
+            const user = accounts[0];
+        
+            for (let d in invalidDomains) {
+                const domain = invalidDomains[d];
+                await nft.test(domain, user).should.be.rejected;
+            }
+        
+        });
     })
 
 })

@@ -70,6 +70,13 @@ contract EthmojiVerifier is Ownable {
         }
     }
 
+    /* parsed is a concatonation of 4 byte vectors per each repeated run of an emoji
+     * 0: number of emojis in the run
+     * 1: the number of codepoints in a single instance of that emoji
+     * 2: the number of bytes in a normalized form of the emoji
+     * 3: the number of bytes in a beautified form of the emoji
+    */
+
     function test(string memory name)
         public
         view
@@ -92,7 +99,9 @@ contract EthmojiVerifier is Ownable {
         bytes memory temp;
         (temp, parsed) = beautify(bytes(name)); // throws if not normalized ethmoji
         keycaps = keycap_count(bytes(name), parsed);
-        if (keycaps > 0) {} else if (parsed.length == 4) {
+        if (keycaps > 0) {
+
+        } else if (parsed.length == 4) {
             // single
             uint256 n = uint8(parsed[0]);
             uint256 num_cp = uint8(parsed[1]);
