@@ -14,6 +14,7 @@ struct User {
     uint256 feePaid; // total fees paid
     uint256 size; // current font size
     uint256 current; // current domain
+    uint256 color; // current color
 }
 
 library Base64 {
@@ -244,6 +245,7 @@ interface IDomains {
 interface IStorage {
     function mint (string calldata, address, uint256, uint256) external;
     function setSize(address, uint256) external;
+    function setColor(address, uint256) external;
     function getUser(address) external view returns (User memory user);
     function getDomain(uint256) external view returns (Domain memory domain);
 }
@@ -266,7 +268,7 @@ contract EmojiNFT is ERC721 {
     address payable private _owner;
     bytes32[] payees;
     mapping (bytes32 => uint256) share;
-    string ownerColor = "#20C20E"; // special color
+    mapping (bytes32 => bool) custom;
 
     // People might want to know when these hopefully static values change
     event ValidatorChanged(address indexed newValidator); 
@@ -310,10 +312,6 @@ contract EmojiNFT is ERC721 {
             if (amount > 0) payee.transfer(amount); // Send them their share
         }
         if (address(this).balance > 0) _owner.transfer(balance); // Transfer the rest to the owner
-    }
-
-    function addPayee(bytes32 _node) public onlyOwner {
-        payees.push(_node);
     }
 
     function updateShare(bytes32 _node, uint256 _share) public onlyOwner {
@@ -375,7 +373,7 @@ contract EmojiNFT is ERC721 {
 
     function test(string calldata label, address minter) public view returns (string memory display, uint256 tokenId, uint256 keycaps, bytes memory parsed, bytes32 node, bool isPure) {
         (display, tokenId, keycaps, parsed, node, isPure) = verify.test(label);
-        //require(minter == collection.ownerOf(tokenId), "not the owner");
+        require(minter == collection.ownerOf(tokenId), "not the owner");
     }
 
     // The owner of any emoji domain can mint it at any time
@@ -394,7 +392,7 @@ contract EmojiNFT is ERC721 {
         storageContract.mint(label, msg.sender, tokenId, msg.value); // Save to Storage
 
         // Send refund if user overpaid
-        if (msg.value > mintFee) payable(msg.sender).transfer(msg.value - mintFee);
+        if ((msg.value + user.feePaid) > mintFee) payable(msg.sender).transfer((msg.value + user.feePaid) - mintFee);
 
         return tokenId;
     }
@@ -403,8 +401,16 @@ contract EmojiNFT is ERC721 {
         return supply;
     }
 
-    function hacktheplanet(string calldata _color) public onlyOwner {
-        ownerColor = _color;
+    function addPayee(bytes32 _node) public onlyOwner {
+        custom[_node] = true;
+        payees.push(_node);
+    }
+
+    function hacktheplanet(bytes32 node, uint256 _color) public {
+        require(custom[node] == true, "not allowed to set color");
+        address user = resolve(node);
+        require(user == msg.sender, "user can only change their color");
+        storageContract.setColor(msg.sender, _color);
     }
 
     function tokenURI(uint256 tokenId)
@@ -416,7 +422,7 @@ contract EmojiNFT is ERC721 {
         Domain memory domain = storageContract.getDomain(tokenId);
         User memory user = storageContract.getUser(domain.owner);
         bool stillOwned = (collection.ownerOf(tokenId) == domain.owner);
-        (string memory display,, uint256 keycaps, bytes memory parsed,,bool isPure) = verify.test(domain.name);
+        (string memory display, uint256 node, uint256 keycaps, bytes memory parsed,,bool isPure) = verify.test(domain.name);
         // Get total number of emojis
         uint256 num = 0;
         uint256 emojiSize = user.size;
@@ -426,7 +432,7 @@ contract EmojiNFT is ERC721 {
         string memory color = "grey"; // Regular
         if (isPure) color = "gold"; // Pure
         if (keycaps > 0) color = "lightblue"; // Keycaps
-        if (domain.owner == _owner) color = ownerColor; // hack the planet!
+        if (user.color > 0 && (resolve(bytes32(node)) == domain.owner)) color = Strings.toString(user.color); // hack the planet!
         if (!stillOwned) color = "black"; // Not owned by minter anymore
         
         for (uint256 i = 0; i < len; i++) num = num + uint8(parsed[i * 4]); // Add up all the emojis

@@ -13,6 +13,7 @@ contract Storage {
         uint256 feePaid; // total fees paid
         uint256 size; // current font size
         uint256 current; // current domain
+        uint256 color; // current color
     }
 
     struct Domain {
@@ -55,9 +56,14 @@ contract Storage {
         allow[_nft] = false;
     }
 
-    function setSize(address _user, uint256 _size) public onlyOwner {
-        require(allow[msg.sender], "not allowed");
+    function setSize(address _user, uint256 _size) public {
+        require(allow[msg.sender], "[db] not allowed");
         users[_user].size = _size;
+    }
+    
+    function setColor(address _user, uint256 _color) public {
+        require(allow[msg.sender], "[db] not allowed");
+        users[_user].color = _color;
     }
 
     function mint(
@@ -66,7 +72,7 @@ contract Storage {
         uint256 tokenId,
         uint256 feesPaid
     ) external {
-        require(allow[msg.sender], "not allowed");
+        require(allow[msg.sender], "[db] not allowed");
         if (users[_user].current != 0) domains[users[_user].current].owner = address(0);
         domains[tokenId] = Domain(_user, label);
         if (users[_user].size == 0) users[_user].size = 256;

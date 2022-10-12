@@ -43,8 +43,6 @@ contract('Emoji NFT', (accounts) => {
             }
         })
 
-        
-
         it('should fail', async () => {
         
             const invalidDomains = [
