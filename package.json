@@ -17,7 +17,7 @@
     "flat:verify": "npx truffle-flattener contracts/Verify.sol > Verify.sol",
     "flat": "npm run flat:nft && npm run flat:storage && npm run flat:verify",
     "fork:pirate": "npx ganache-cli -m \"***REMOVED***\" -p 8545 -h 0.0.0.0 -l 80000000 --fork ***REMOVED*** --wallet.unlockedAccounts 0x149fD340cA0DF54228aACdAD7755B05d0E2b23d9",
-    "fork": "npx ganache-cli -m \"***REMOVED***\" -p 8545 -h 0.0.0.0 -l 80000000 --fork ***REMOVED***"
+    "fork": "npx ganache-cli -m \"***REMOVED***\" -p 8545 -h 0.0.0.0 -l 80000000 --fork https://goerli.infura.io/v3/44f0dc2ccce842ce9be5c0cf9e7c7370"
   },
   "repository": {
     "type": "git",
