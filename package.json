@@ -16,8 +16,7 @@
     "flat:storage": "npx truffle-flattener contracts/Storage.sol > Storage.sol",
     "flat:verify": "npx truffle-flattener contracts/Verify.sol > Verify.sol",
     "flat": "npm run flat:nft && npm run flat:storage && npm run flat:verify",
-    "fork:pirate": "npx ganache-cli -m \"width simple sugar wisdom crunch tomato bench canvas merit sorry digital board\" -p 8545 -h 0.0.0.0 -l 80000000 --fork https://192.168.1.5:8085 --wallet.unlockedAccounts 0x149fD340cA0DF54228aACdAD7755B05d0E2b23d9",
-    "fork": "npx ganache-cli -m \"width simple sugar wisdom crunch tomato bench canvas merit sorry digital board\" -p 8545 -h 0.0.0.0 -l 80000000 --fork https://192.168.1.5:8085"
+    "fork": "npx ganache-cli -m \"width simple sugar wisdom crunch tomato bench canvas merit sorry digital board\" -p 8545 -h 0.0.0.0 -l 80000000 --fork http://192.168.1.165:8545"
   },
   "repository": {
     "type": "git",

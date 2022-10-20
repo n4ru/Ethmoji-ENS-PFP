@@ -282,9 +282,15 @@ contract EmojiNFT is ERC721 {
 	uint256 fee; // Amount to charge for all other emoji domains
 
 	bool lockFees; // Lock fees to prevent changes
+    bool locked; // Lock NFTs from showing
 
     modifier onlyOwner() {
         require(msg.sender == _owner, "onlyOwner");
+        _;
+    }
+
+    modifier unlocked() {
+        require(!locked, "nft locked");
         _;
     }
 
@@ -298,7 +304,8 @@ contract EmojiNFT is ERC721 {
         setFees(_fee, _purefee, _keycapfee); // Set fees
         verify = IVerify(_verify); // Set emoji verification contract
         collection = IDomains(_name); // Hopefully forever...
-        storageContract = IStorage(_storage);
+        storageContract = IStorage(_storage); // This can't change so nobody gets rugged
+        locked = true; // Start locked
     }
 
     // Lets hope I didn't fuck this up too bad
@@ -326,6 +333,10 @@ contract EmojiNFT is ERC721 {
 
     function setOwner(address payable _newOwner) public onlyOwner {
         _owner = _newOwner;
+    }
+
+    function findOwner(uint256 tokenId) public view returns (address) {
+        return collection.ownerOf(tokenId);
     }
 
     // If this is triggered fees are locked forever
@@ -374,7 +385,7 @@ contract EmojiNFT is ERC721 {
 
     function test(string calldata label, address minter) public view returns (string memory display, uint256 tokenId, uint256 keycaps, bytes memory parsed, bytes32 node, bool isPure) {
         (display, tokenId, keycaps, parsed, node, isPure) = verify.test(label);
-        require(minter == collection.ownerOf(tokenId), "not the owner");
+        if (minter != address(0)) require(minter == collection.ownerOf(tokenId), "not the owner");
     }
 
     // The owner of any emoji domain can mint it at any time
@@ -430,14 +441,23 @@ contract EmojiNFT is ERC721 {
         uint256 emojiSize = user.size;
         uint256 len = parsed.length / 4; // 4B vector per run of emoji
         
+        // Colors
+        uint256 color = 8421504;//"grey"; // Regular
+        if (isPure) color = 16766720;//"gold"; // Pure
+        if (keycaps > 0) color = 11393254;//"lightblue"; // Keycaps
+        if (user.color > 0 && (resolve(node) == domain.owner)) color = user.color; // hack the planet!
+        if (!stillOwned) color = 0;//"black"; // Not owned by minter anymore or NFT has not been unlocked yet
 
-        string memory color = "grey"; // Regular
-        if (isPure) color = "gold"; // Pure
-        if (keycaps > 0) color = "lightblue"; // Keycaps
-        if (user.color >= 0 && (resolve(node) == domain.owner)) color = toHexString(user.color); // hack the planet!
-        if (!stillOwned) color = "black"; // Not owned by minter anymore
+        // Emojis
         for (uint256 i = 0; i < len; i++) num = num + uint8(parsed[i * 4]); // Add up all the emojis
         uint256 px = emojiSize / num;  // Initial font size (32-256) divided by the total number of emojis
+
+        // NFT Still Locked?
+        if (locked) {
+            color = 0;
+            display = unicode"🔒";
+            px = 256;
+        }
 
         // Create the NFT
         string memory json = Base64.encode(bytes(string(abi.encodePacked(
@@ -445,7 +465,7 @@ contract EmojiNFT is ERC721 {
             domain.name, // ENS Domain (Normalized)
             "\", \"description\": \"An ENS Emoji Domain NFT\", \"image_data\": \"",
             "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='100%' height='100%' fill='#",
-            color, // Color
+            toHexColor(color), // Color
             "' /><text x='50%' y='55%' style='font-size: ",
             (Strings.toString(isPure ? emojiSize : px)),
             "px' dominant-baseline='middle' text-anchor='middle'>",
@@ -491,7 +511,7 @@ contract EmojiNFT is ERC721 {
     
     bytes16 private constant _HEX_SYMBOLS = "0123456789abcdef";
 
-    function toHexString(uint256 value) internal pure returns (string memory) {
+    function toHexColor(uint256 value) internal pure returns (string memory) {
         bytes memory buffer = new bytes(6);
         for (uint256 i = 6; i > 0; i--) {
             buffer[i - 1] = _HEX_SYMBOLS[value & 0xf];

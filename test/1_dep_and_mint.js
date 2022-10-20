@@ -3,10 +3,26 @@ require('chai').use(require('bn-chai')(web3.utils.BN)).use(require('chai-as-prom
 const ENSNFT = artifacts.require('EmojiNFT')
 const Verifier = artifacts.require('EthmojiVerifier')
 const StorageContract = artifacts.require('Storage')
-const { readFileSync } = require('fs')
+const { writeFileSync, readFileSync } = require('fs')
 
 let verifier, nft, storage;
-let pirate = "0x149fD340cA0DF54228aACdAD7755B05d0E2b23d9";
+
+const unlockAccount = async (address) => {
+    let provider = web3.currentProvider;
+    return new Promise((res, rej) => {
+        provider.send({
+            method: 'evm_addAccount',
+            params: [address, ""]
+        }, (d) => {
+            provider.send({
+                method: 'personal_unlockAccount',
+                params: [address, ""]
+            }, (d) => {
+                res(d);
+            });
+        });
+    });
+}
 
 contract('Emoji NFT', (accounts) => {
 
@@ -35,30 +51,34 @@ contract('Emoji NFT', (accounts) => {
             for (let d in domains) {
                 const domain = domains[d];
                 const fee = await nft.getFee(domain);
-                const label = await nft.test(domain, user);
-                console.log("TokenId: " + label.tokenId);
-                const { logs, receipt } = await nft.mint(domain, { value: fee, from: user })
+                const label = await nft.test(domain, "0x0000000000000000000000000000000000000000");
+                const owner = await nft.findOwner(label.tokenId);
+                await unlockAccount(owner);
+                console.log(`---\nToken: ${label.tokenId}\nOwner: ${owner}`);
+                const { logs, receipt } = await nft.mint(domain, { value: fee, from: owner });
                 let thisToken = await nft.tokenURI(label.tokenId);
-                //console.log(thisToken);
+                console.log(`NFT: ${thisToken}`);
+                let token = Buffer.from(thisToken.substring(29), "base64").toString();
+                writeFileSync(`./nft/${label.tokenId}.svg`, JSON.parse(token).image_data);
             }
         })
 
         it('should fail', async () => {
-        
+
             const invalidDomains = [
                 // invalid
                 'text.eth',
                 'dog🐶.eth',
                 //'😊.eth', // too short but valid, won't fail without owner check
             ];
-        
+
             const user = accounts[0];
-        
+
             for (let d in invalidDomains) {
                 const domain = invalidDomains[d];
                 await nft.test(domain, user).should.be.rejected;
             }
-        
+
         });
     })
 
